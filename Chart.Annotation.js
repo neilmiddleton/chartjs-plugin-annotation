@@ -116,12 +116,27 @@ var AnnotationPlugin = Chart.PluginBase.extend({
 	beforeInit: function(chartInstance) {
 		var options = chartInstance.options;
 		options.annotation = helpers.configMerge(options.annotation, Chart.Annotation.defaults);
-
+		var defaultLabelOptions = {
+			backgroundColor: 'rgba(0,0,0,0.8)',
+			fontFamily: options.defaultFontFamily,
+			fontSize: options.defaultFontSize,
+			fontStyle: "bold",
+			fontColor: "#fff",
+			xPadding: 6,
+			yPadding: 6,
+			cornerRadius: 6,
+			position: "center",
+			xAdjust: 0,
+			yAdjust: 0,
+			enabled: false,
+			content: null
+		};
 		var annotationConfigs = options.annotation.annotations;
 		if (isArray(annotationConfigs)) {
 			var annotationObjects = chartInstance._annotationObjects = [];
 
 			annotationConfigs.forEach(function(configuration, i) {
+				configuration.label = helpers.configMerge(defaultLabelOptions, configuration.label);
 				var Constructor = annotationTypes[configuration.type];
 				if (Constructor) {
 					annotationObjects.push(new Constructor({
@@ -132,7 +147,7 @@ var AnnotationPlugin = Chart.PluginBase.extend({
 		}
 	},
 	afterScaleUpdate: function(chartInstance) {
-		// Once scales are ready, update 
+		// Once scales are ready, update
 		var annotationObjects = chartInstance._annotationObjects;
 		var annotationOpts = chartInstance.options.annotation;
 
@@ -149,13 +164,15 @@ var AnnotationPlugin = Chart.PluginBase.extend({
 	},
 
 	afterDraw: function(chartInstance, easingDecimal) {
+		var annotationOpts = chartInstance.options.annotation;
 		// If we have annotations, draw them
 		var annotationObjects = chartInstance._annotationObjects;
 		if (isArray(annotationObjects)) {
 			var ctx = chartInstance.chart.ctx;
 
 			annotationObjects.forEach(function(obj) {
-				obj.transition(easingDecimal).draw(ctx);
+				var opts = annotationOpts.annotations[obj._index];
+				obj.transition(easingDecimal).draw(ctx, opts);
 			});
 		}
 	}
@@ -165,6 +182,11 @@ module.exports = AnnotationPlugin;
 Chart.pluginService.register(new AnnotationPlugin());
 
 },{"./box.js":2,"./line.js":4,"chart.js":1}],4:[function(require,module,exports){
+// Get the chart variable
+var Chart = require('chart.js');
+Chart = typeof(Chart) === 'function' ? Chart : window.Chart;
+var helpers = Chart.helpers;
+
 // Line Annotation implementation
 module.exports = function(Chart) {
 	var horizontalKeyword = 'horizontal';
@@ -172,10 +194,11 @@ module.exports = function(Chart) {
 
 	var LineAnnotation = Chart.Element.extend({
 
-		draw: function(ctx) {
+		draw: function(ctx, options) {
 			var view = this._view;
 
 			// Canvas setup
+			ctx.save();
 			ctx.lineWidth = view.borderWidth;
 			ctx.strokeStyle = view.borderColor;
 
@@ -189,8 +212,72 @@ module.exports = function(Chart) {
 			ctx.moveTo(view.x1, view.y1);
 			ctx.lineTo(view.x2, view.y2);
 			ctx.stroke();
+			ctx.restore();
+
+			if (options.label.enabled && options.label.content) {
+				ctx.fillStyle = options.label.backgroundColor;
+				ctx.font = helpers.fontString(
+					options.label.fontSize,
+					options.label.fontStyle,
+					options.label.fontFamily
+				);
+				var text = ctx.measureText(options.label.content);
+				var position = calculatePosition(
+					options.label.position,
+					options.label.xAdjust,
+					options.label.yAdjust,
+					view,
+					text.width,
+					options.label.fontSize
+				);
+
+				// Draw the tooltip
+				helpers.drawRoundedRectangle(
+					ctx,
+					position.x - options.label.xPadding, // x
+					position.y - options.label.yPadding, // y
+					text.width + (2 * options.label.xPadding), // width
+					options.label.fontSize + (2 * options.label.yPadding), // height
+					options.label.cornerRadius // radius
+				);
+				ctx.fill();
+
+				// Draw the text
+				ctx.fillStyle = options.label.fontColor;
+				ctx.textAlign = 'left';
+				ctx.textBaseline = 'top';
+				ctx.fillText(
+					options.label.content,
+					position.x,
+					position.y
+				);
+			}
 		}
 	});
+
+	function calculatePosition(option, adjustX, adjustY, view, width, height) {
+		var ret = {
+			x: ((view.x1 + view.x2 - width) / 2),
+			y: ((view.y1 + view.y2 - height) / 2)
+		};
+		switch (option) {
+		case "top":
+			ret.y = view.y1 > view.y2 ? view.y2 : view.y1;
+			break;
+		case "left":
+			ret.x = view.x1 > view.x2 ? view.x1 : view.x2;
+			break;
+		case "bottom":
+			ret.y = view.y1 > view.y2 ? view.y1 : view.y2;
+			break;
+		case "right":
+			ret.x = view.x1 > view.x2 ? view.x2 : view.x1;
+			break;
+		}
+		ret.x += adjustX;
+		ret.y += adjustY;
+		return ret;
+	}
 
 	function lineUpdate(obj, options, chartInstance) {
 		var model = obj._model = obj._model || {};
@@ -224,4 +311,4 @@ module.exports = function(Chart) {
 	};
 };
 
-},{}]},{},[3]);
+},{"chart.js":1}]},{},[3]);
