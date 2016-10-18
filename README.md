@@ -19,7 +19,13 @@ To configure the annotations plugin, you can simply add new config options to yo
 			value: '25',
 			borderColor: 'red',
 			borderWidth: 2
-		}]
+		}],
+		// Defines when the annotations are drawn.
+		// This allows positioning of the annotation relative to the other
+		// elements of the graph.
+		// Should be one of: afterDraw, afterDatasetsDraw, beforeDatasetsDraw
+		// See http://www.chartjs.org/docs/#advanced-usage-creating-plugins
+		drawTime: "afterDraw" // (default)
 	}
 }
 ```
